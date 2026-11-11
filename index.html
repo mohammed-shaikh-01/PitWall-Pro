@@ -1,0 +1,1511 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>F1 Strategy Simulator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.1.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1"></script>
+
+    <!-- Lap Visualizer Component -->
+    <link rel="stylesheet" href="lap-visualizer.css">
+    <script src="lap-visualizer.js"></script>
+
+    <style>
+        * {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #0f172a 0%, #1a1f3a 100%);
+        }
+
+        .gradient-text {
+            background: linear-gradient(120deg, #06b6d4, #0ea5e9);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+
+        .card-hover:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+        }
+
+        .input-focus {
+            transition: all 0.2s ease;
+        }
+
+        .input-focus:focus {
+            transform: translateY(-1px);
+        }
+
+        .btn-pulse {
+            animation: pulse-btn 2s infinite;
+        }
+
+        @keyframes pulse-btn {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.8; }
+        }
+
+        .chartjs-tooltip {
+            background: rgba(15, 23, 42, 0.95);
+            color: #06b6d4;
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            border: 1px solid rgba(6, 182, 212, 0.3);
+            pointer-events: none;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+        }
+
+        .chartjs-tooltip-key {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            margin-right: 8px;
+            border-radius: 3px;
+        }
+
+        @media (max-width: 768px) {
+            .form-grid {
+                grid-template-columns: 1fr !important;
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-slate-950 text-slate-200 min-h-screen antialiased">
+
+    <div class="min-h-screen flex flex-col">
+        <div class="container mx-auto px-4 py-8 md:py-12 max-w-6xl flex-1">
+
+            <header class="text-center mb-12 md:mb-16">
+                <div class="mb-4">
+                    <h1 class="text-5xl md:text-6xl font-bold text-white mb-3 tracking-tight">
+                        Pitwall Pro <br/><span class="gradient-text">Intelligent Formula Racing Strategy Simulator</span>
+                    </h1>
+                </div>
+                <p class="text-base md:text-lg text-slate-400 font-light">
+                    Optimize your pit stop strategy with real F1 data
+                </p>
+            </header>
+
+            <div class="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6 md:p-8 mb-10 card-hover shadow-2xl">
+                <form id="simulation-form" class="form-grid grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6">
+
+                <div>
+                    <label for="driver_name" class="block text-xs font-semibold text-slate-300 mb-2 uppercase tracking-wide">Driver</label>
+                    <select id="driver_name" name="driver_name"
+                        class="w-full bg-slate-700/50 border border-slate-600/50 text-white rounded-lg p-3 input-focus focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50 transition text-sm">
+                        <option value="" disabled selected>Loading drivers...</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label for="race_name" class="block text-xs font-semibold text-slate-300 mb-2 uppercase tracking-wide">Race</label>
+                    <select id="race_name" name="race_name"
+                        class="w-full bg-slate-700/50 border border-slate-600/50 text-white rounded-lg p-3 input-focus focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50 transition text-sm">
+                        <option value="" disabled selected>Loading races...</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label for="pit_stop_loss" class="block text-xs font-semibold text-slate-300 mb-2 uppercase tracking-wide">Pit Loss (s)</label>
+                    <input type="number" id="pit_stop_loss" name="pit_stop_loss" value="22" step="0.1"
+                        class="w-full bg-slate-700/50 border border-slate-600/50 text-white rounded-lg p-3 input-focus focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50 transition text-sm">
+                </div>
+
+                <div>
+                    <label for="total_laps_input" class="block text-xs font-semibold text-slate-300 mb-2 uppercase tracking-wide">Total Laps</label>
+                    <input type="text" id="total_laps_input" name="total_laps_input" value="N/A" readonly
+                        class="w-full bg-slate-600/30 border border-slate-600/30 text-slate-400 rounded-lg p-3 cursor-not-allowed text-sm font-medium">
+                </div>
+
+                <div class="md:col-span-4 pt-2">
+                    <button type="submit" id="run-simulation-btn"
+                        class="w-full bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white font-bold py-3 px-6 rounded-lg transition duration-300 ease-in-out flex items-center justify-center shadow-lg hover:shadow-xl">
+                        <span id="btn-text">Run Simulation</span>
+                        <svg id="loading-spinner" class="animate-spin -ml-1 mr-3 h-5 w-5 text-white hidden"
+                            xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor"
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div id="error-display" class="bg-red-500/10 border border-red-500/30 text-red-300 p-4 rounded-lg mb-8 hidden backdrop-blur-sm"
+            role="alert">
+            <p class="font-semibold text-sm">⚠ Error</p>
+            <p id="error-text" class="text-sm mt-1">Something went wrong.</p>
+        </div>
+
+        <div id="results-section" class="hidden animation-fade-in">
+            <div class="mb-12">
+                <h2 class="text-2xl md:text-3xl font-bold text-white mb-6 flex items-center">
+                    <span class="w-1 h-8 bg-gradient-to-b from-cyan-500 to-blue-500 rounded-full mr-3"></span>
+                    Top Strategies
+                </h2>
+                <div id="results-summary" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    </div>
+            </div>
+
+            <div class="mb-12 flex flex-wrap items-center gap-4">
+    <button id="toggle-insights" class="bg-blue-500/20 border border-blue-500/50 text-blue-300 px-4 py-2 rounded-lg text-sm font-medium transition-all hover:bg-blue-500/30">
+        💡 Show Detailed Analysis
+    </button>
+
+    <button id="view-track-btn" class="bg-slate-700/50 hover:bg-slate-600 border border-slate-600/50 text-white rounded-lg px-4 py-2 transition text-sm font-semibold">
+    📍 View Track
+</button>
+
+<div id="track-map-modal" class="fixed inset-0 bg-black/80 z-50 hidden items-center justify-center p-4 backdrop-blur-sm transition-opacity">
+    
+    <div class="bg-slate-800 rounded-xl border border-slate-700 shadow-2xl w-full max-w-4xl relative flex flex-col">
+        
+        <div class="flex justify-between items-center p-4 border-b border-slate-700 bg-slate-800/80 rounded-t-xl">
+            <h3 class="text-white text-xl font-bold flex items-center gap-2" id="track-map-title">
+                📍 Track Layout
+            </h3>
+            
+            <button id="close-track-modal" class="text-slate-400 hover:text-white hover:bg-slate-700 p-2 rounded-lg transition">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+
+        <div class="p-6">
+            <canvas id="track-canvas" width="800" height="400" class="w-full h-auto bg-slate-900 rounded-lg shadow-inner"></canvas>
+        </div>
+    </div>
+</div>
+
+    <button type="button" id="btn-show-driver" onclick="showDriverInfo()" 
+        class="px-4 py-2 bg-gradient-to-r from-blue-500 to-lightblue-500 hover:from-blue-600 hover:to-lightblue-600 text-white font-bold rounded-lg shadow-lg transition-all flex items-center gap-2 text-sm">
+        🪪 View Driver Profile
+    </button>
+</div>
+
+            <div id="insights-section" class="mb-12 hidden">
+                <div class="mb-8">
+                    <h3 class="text-xl font-bold text-white mb-4">📊 Strategy Breakdown</h3>
+                    <div id="strategy-details" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        </div>
+                </div>
+
+                <div class="mb-8">
+                    <h3 class="text-xl font-bold text-white mb-4">⚖️ Comparative Analysis</h3>
+                    <div class="bg-slate-800/50 border border-slate-700/50 rounded-lg p-6 overflow-x-auto">
+                        <canvas id="comparison-chart"></canvas>
+                    </div>
+                </div>
+
+                <div>
+                    <h3 class="text-xl font-bold text-white mb-4">📈 Sensitivity to Pit Loss Time</h3>
+                    <div class="bg-slate-800/50 border border-slate-700/50 rounded-lg p-6">
+                        <canvas id="sensitivity-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Lap Visualizer Section -->
+            <div id="lap-visualizer-section" class="mb-12 hidden">
+                <h2 class="text-2xl md:text-3xl font-bold text-white mb-6 flex items-center">
+                    <span class="w-1 h-8 bg-gradient-to-b from-cyan-500 to-blue-500 rounded-full mr-3"></span>
+                    Interactive Lap Visualization
+                </h2>
+                <div id="lap-visualizer-container"></div>
+            </div>
+
+            <div class="mb-12">
+                <h2 class="text-2xl md:text-3xl font-bold text-white mb-6 flex items-center">
+                    <span class="w-1 h-8 bg-gradient-to-b from-cyan-500 to-blue-500 rounded-full mr-3"></span>
+                    Tyre Degradation
+                </h2>
+                <div id="degradation-summary" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    </div>
+            </div>
+
+            <div>
+                <h2 class="text-2xl md:text-3xl font-bold text-white mb-6 flex items-center">
+                    <span class="w-1 h-8 bg-gradient-to-b from-cyan-500 to-blue-500 rounded-full mr-3"></span>
+                    Strategy Analysis
+                </h2>
+
+                <div class="flex gap-2 mb-6 flex-wrap">
+                    <button class="chart-tab active bg-cyan-500/20 border border-cyan-500/50 text-cyan-300 px-4 py-2 rounded-lg text-sm font-medium transition-all hover:bg-cyan-500/30" data-chart="stints">
+                        Lap Distribution
+                    </button>
+                    <button class="chart-tab bg-slate-700/50 border border-slate-600/50 text-slate-300 px-4 py-2 rounded-lg text-sm font-medium transition-all hover:bg-slate-700" data-chart="timeanalysis">
+                        Time Analysis
+                    </button>
+                    <button class="chart-tab bg-slate-700/50 border border-slate-600/50 text-slate-300 px-4 py-2 rounded-lg text-sm font-medium transition-all hover:bg-slate-700" data-chart="composition">
+                        Tyre Composition
+                    </button>
+                </div>
+
+                <div class="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6 md:p-8 shadow-2xl card-hover chart-container" id="stints-container">
+                    <canvas id="strategy-chart"></canvas>
+                </div>
+
+                <div class="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6 md:p-8 shadow-2xl card-hover chart-container hidden" id="timeanalysis-container">
+                    <canvas id="time-analysis-chart"></canvas>
+                </div>
+
+                <div class="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6 md:p-8 shadow-2xl card-hover chart-container hidden" id="composition-container">
+                    <div class="max-w-sm mx-auto">
+                        <canvas id="composition-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        </div>
+    </div>
+    <div id="track-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-80 backdrop-blur-sm transition-opacity">
+    <div class="bg-gray-900 border border-cyan-500/50 rounded-xl shadow-2xl p-6 w-full max-w-3xl relative">
+        <button onclick="closeTrackMap()" class="absolute top-4 right-4 text-gray-400 hover:text-white text-2xl font-bold">&times;</button>
+        
+        <h2 class="text-2xl font-bold text-white mb-2 flex items-center gap-2">
+            📍 <span id="track-modal-title">Circuit Layout</span>
+        </h2>
+        <p class="text-cyan-400 text-sm mb-4">Telemetry path based on fastest lap</p>
+        
+        <div class="w-full aspect-square md:aspect-video flex items-center justify-center bg-gray-950 rounded-lg p-4 border border-gray-800">
+            <canvas id="trackMapCanvas"></canvas>
+        </div>
+        
+        <div id="track-loading" class="hidden absolute inset-0 flex flex-col items-center justify-center bg-gray-900/80 rounded-xl">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500 mb-3"></div>
+            <p class="text-cyan-400">Extracting telemetry geometry...</p>
+        </div>
+    </div>
+</div>
+<div id="driver-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-80 backdrop-blur-sm transition-opacity">
+    <div class="bg-gray-900 border border-purple-500/50 rounded-xl shadow-2xl p-6 w-full max-w-md relative overflow-hidden">
+        
+        <div class="absolute -top-20 -right-20 w-48 h-48 bg-purple-600 rounded-full mix-blend-multiply filter blur-3xl opacity-20"></div>
+        <div class="absolute -bottom-20 -left-20 w-48 h-48 bg-pink-600 rounded-full mix-blend-multiply filter blur-3xl opacity-20"></div>
+
+        <button onclick="closeDriverInfo()" class="absolute top-4 right-4 text-gray-400 hover:text-white text-2xl font-bold z-10">&times;</button>
+        
+        <div class="flex items-center gap-4 border-b border-gray-800 pb-4 mb-4 relative z-10">
+            <div class="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-2xl font-black text-white shadow-lg" id="driver-badge">
+                VER
+            </div>
+            <div>
+                <h2 class="text-2xl font-bold text-white" id="modal-driver-name">Max Verstappen</h2>
+                <p class="text-purple-400 font-medium flex items-center gap-2">
+                    <span id="modal-driver-team">Red Bull Racing</span> • <span id="modal-driver-country">🇳🇱</span>
+                </p>
+            </div>
+        </div>
+        
+        <div class="grid grid-cols-2 gap-4 relative z-10">
+            <div class="bg-gray-950 border border-gray-800 rounded-lg p-3 text-center">
+                <p class="text-gray-400 text-xs uppercase tracking-wider mb-1">World Titles</p>
+                <p class="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-yellow-600" id="stat-champ">3</p>
+            </div>
+            <div class="bg-gray-950 border border-gray-800 rounded-lg p-3 text-center">
+                <p class="text-gray-400 text-xs uppercase tracking-wider mb-1">Race Wins</p>
+                <p class="text-2xl font-bold text-white" id="stat-wins">58</p>
+            </div>
+            <div class="bg-gray-950 border border-gray-800 rounded-lg p-3 text-center">
+                <p class="text-gray-400 text-xs uppercase tracking-wider mb-1">Podiums</p>
+                <p class="text-2xl font-bold text-white" id="stat-podiums">103</p>
+            </div>
+            <div class="bg-gray-950 border border-gray-800 rounded-lg p-3 text-center">
+                <p class="text-gray-400 text-xs uppercase tracking-wider mb-1">Pole Positions</p>
+                <p class="text-2xl font-bold text-white" id="stat-poles">37</p>
+            </div>
+            <div class="bg-gray-950 border border-gray-800 rounded-lg p-3 text-center col-span-2">
+                <p class="text-gray-400 text-xs uppercase tracking-wider mb-1">Total Race Starts</p>
+                <p class="text-xl font-bold text-purple-300" id="stat-starts">191</p>
+            </div>
+        </div>
+
+        <div id="driver-loading" class="hidden absolute inset-0 flex flex-col items-center justify-center bg-gray-900/90 z-20">
+            <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-500 mb-3"></div>
+            <p class="text-purple-400">Loading driver dossier...</p>
+        </div>
+    </div>
+</div>
+
+    <script>
+        // --- Globals ---
+        const API_BASE_URL = 'http://127.0.0.1:8000';
+        const formEl = document.getElementById('simulation-form');
+        const driverSelectEl = document.getElementById('driver_name');
+        const raceSelectEl = document.getElementById('race_name');
+        const pitLossEl = document.getElementById('pit_stop_loss');
+        const totalLapsEl = document.getElementById('total_laps_input');
+
+        const resultsSectionEl = document.getElementById('results-section');
+        const resultsSummaryEl = document.getElementById('results-summary');
+        const errorEl = document.getElementById('error-display');
+        const errorTextEl = document.getElementById('error-text');
+
+        const runBtn = document.getElementById('run-simulation-btn');
+        const btnText = document.getElementById('btn-text');
+        const loadingSpinner = document.getElementById('loading-spinner');
+
+        let strategyChart = null;
+        let timeAnalysisChart = null;
+        let compositionChart = null;
+        let comparisonChart = null;
+        let sensitivityChart = null;
+        let currentSimulationData = null;
+        // --- Event Listeners ---
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadDropdownData();
+        });
+        formEl.addEventListener('submit', handleSimulationSubmit);
+        raceSelectEl.addEventListener('change', handleRaceChange);
+
+        // Chart tab switching
+        document.querySelectorAll('.chart-tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                const chartType = this.dataset.chart;
+                switchChart(chartType);
+            });
+        });
+
+        // Insights toggle
+        document.getElementById('toggle-insights').addEventListener('click', function() {
+            const insightsSection = document.getElementById('insights-section');
+            insightsSection.classList.toggle('hidden');
+            this.textContent = insightsSection.classList.contains('hidden') ? '💡 Show Detailed Analysis' : '💡 Hide Detailed Analysis';
+        });
+
+
+        // --- Functions ---
+
+        /**
+         * Fetches Drivers and Races from the API to populate dropdowns
+         */
+        async function loadDropdownData() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api-data`);
+                if (!response.ok) {
+                    throw new Error(`Server error: ${response.statusText}`);
+                }
+                const data = await response.json();
+
+                // Populate Drivers
+                driverSelectEl.innerHTML = '<option value="" disabled>Select a driver...</option>'; // Clear "loading"
+                if (data.drivers && data.drivers.length > 0) {
+                    data.drivers.forEach(driver => {
+                        const option = document.createElement('option');
+                        option.value = driver;
+                        option.textContent = driver;
+                        driverSelectEl.appendChild(option);
+                    });
+                    // Set default driver
+                    driverSelectEl.value = data.drivers.includes('VER') ? 'VER' : data.drivers[0];
+                } else {
+                    driverSelectEl.innerHTML = '<option value="" disabled selected>No drivers found</option>';
+                }
+
+                // Populate Races
+                raceSelectEl.innerHTML = '<option value="" disabled>Select a race...</option>'; // Clear "loading"
+                if (data.races && data.races.length > 0) {
+                    data.races.forEach(race => {
+                        const option = document.createElement('option');
+                        option.value = race;
+                        option.textContent = race;
+                        raceSelectEl.appendChild(option);
+                    });
+                    // Set default race to the first in the list
+                    raceSelectEl.value = data.races[0];
+                } else {
+                    raceSelectEl.innerHTML = '<option value="" disabled selected>No races found</option>';
+                }
+
+                // After populating, trigger the lap count fetch for the default race
+                await handleRaceChange();
+
+            } catch (err) {
+                console.error(err);
+                showError('Could not load initial data. Is the API server running?');
+                driverSelectEl.innerHTML = '<option value="" disabled selected>Error loading</option>';
+                raceSelectEl.innerHTML = '<option value="" disabled selected>Error loading</option>';
+            }
+        }
+
+        /**
+         * Called when the race dropdown changes. Fetches total laps for that race.
+         */
+        async function handleRaceChange() {
+            const selectedRace = raceSelectEl.value;
+            if (!selectedRace) {
+                totalLapsEl.value = 'N/A';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/get-laps/${encodeURIComponent(selectedRace)}`);
+                if (!response.ok) {
+                    throw new Error(`Could not find laps for ${selectedRace}`);
+                }
+                const data = await response.json();
+                totalLapsEl.value = data.total_laps || 'N/A';
+            } catch (err) {
+                console.error(err);
+                totalLapsEl.value = 'Error';
+                showError(err.message);
+            }
+        }
+
+        /**
+         * Handles the main form submission
+         */
+        async function handleSimulationSubmit(e) {
+            e.preventDefault(); // Stop form from reloading the page
+
+            // Get form values
+            const driverName = driverSelectEl.value;
+            const raceName = raceSelectEl.value;
+            const pitStopLoss = parseFloat(pitLossEl.value);
+
+            if (!driverName || !raceName) {
+                showError('Please select a driver and a race.');
+                return;
+            }
+
+            // --- UI: Set loading state ---
+            setLoading(true);
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/simulate`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        driver_name: driverName,
+                        race_name: raceName,
+                        pit_stop_loss: pitStopLoss,
+                    }),
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Simulation failed.');
+                }
+
+                // --- Success: Display results ---
+                displayResults(data);
+
+            } catch (err) {
+                console.error(err);
+                showError(err.message);
+            } finally {
+                // --- UI: Unset loading state ---
+                setLoading(false);
+            }
+        }
+
+        /**
+         * Displays the results from the API
+         */
+        function displayResults(data) {
+            // Store data for analysis
+            currentSimulationData = data;
+
+            // 1. Clear old results and show section
+            resultsSummaryEl.innerHTML = '';
+            const degEl = document.getElementById('degradation-summary');
+            degEl.innerHTML = '';
+            resultsSectionEl.style.display = 'block';
+            document.getElementById('insights-section').classList.add('hidden');
+            document.getElementById('toggle-insights').textContent = '💡 Show Detailed Analysis';
+
+            // 2. Populate Top Results (First 3)
+            data.top_3_results.slice(0, 3).forEach((result, index) => {
+                const isOptimal = index === 0;
+                const card = document.createElement('div');
+                card.className = `p-6 rounded-lg transition-all card-hover ${isOptimal ? 'bg-gradient-to-br from-cyan-500/10 to-blue-500/10 border-2 border-cyan-400/50 shadow-lg shadow-cyan-500/10' : 'bg-slate-800/30 border border-slate-700/50 hover:border-slate-600/50'}`;
+
+                card.innerHTML = `
+                    <div class="flex items-start justify-between mb-3">
+                        <h3 class="text-lg font-bold ${isOptimal ? 'text-cyan-300' : 'text-slate-100'}">${result.name}</h3>
+                        ${isOptimal ? '<span class="bg-cyan-500/20 text-cyan-300 text-xs font-semibold px-2 py-1 rounded">OPTIMAL</span>' : ''}
+                    </div>
+                    <p class="text-slate-400 text-sm mb-2">🏁 ${result.pit_stops_text}</p>
+                    <p class="text-slate-300 text-sm font-mono">⏱ ${result.total_time_str}</p>
+                    ${result.delta_str ? `<p class="text-yellow-400/70 text-xs mt-2 font-medium">${result.delta_str}</p>` : ''}
+                `;
+                resultsSummaryEl.appendChild(card);
+            });
+
+            // 3. Populate Tyre Degradation
+            const tyreInfo = {
+                "SOFT": { 
+                    name: "Soft", 
+                    img: "https://upload.wikimedia.org/wikipedia/commons/thumb/d/df/F1_tire_Pirelli_PZero_Red.svg/250px-F1_tire_Pirelli_PZero_Red.svg.png",
+                    fallback: "https://placehold.co/40x40/FF3333/000000?text=S"
+                },
+                "MEDIUM": { 
+                    name: "Medium", 
+                    img: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/F1_tire_Pirelli_PZero_Yellow.svg/250px-F1_tire_Pirelli_PZero_Yellow.svg.png",
+                    fallback: "https://placehold.co/40x40/FFF333/000000?text=M"
+                },
+                "HARD": { 
+                    name: "Hard", 
+                    img: "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d6/F1_tire_Pirelli_PZero_White.svg/250px-F1_tire_Pirelli_PZero_White.svg.png",
+                    fallback: "https://placehold.co/40x40/EBEBEB/000000?text=H"
+                }
+            };
+
+
+            const rates = data.simulation_parameters.final_degradation_rates;
+
+            for (const compound in rates) {
+                if (tyreInfo[compound]) {
+                    const info = tyreInfo[compound];
+                    const rate = rates[compound];
+
+                    const card = document.createElement('div');
+                    card.className = 'bg-slate-800/30 border border-slate-700/50 p-5 rounded-lg shadow-md card-hover transition-all hover:border-slate-600/50 hover:bg-slate-800/50';
+
+                    card.innerHTML = `
+                        <div class="flex items-center space-x-4">
+                            <div class="flex-shrink-0">
+                                <img src="${info.img}"
+                                     alt="${info.name} tyre"
+                                     class="w-12 h-12 rounded-lg object-cover"
+                                     onerror="this.onerror=null; this.src='${info.fallback}';">
+                            </div>
+                            <div class="flex-1">
+                                <p class="text-sm font-semibold text-slate-300 mb-1">${info.name} Tyre</p>
+                                <p class="text-2xl font-bold text-cyan-400">${rate.toFixed(3)}</p>
+                                <p class="text-xs text-slate-500 font-mono">seconds per lap</p>
+                            </div>
+                        </div>
+                    `;
+
+                    degEl.appendChild(card);
+                }
+            }
+
+            // 4. Render Visualization
+            renderChart(data.visualization_data);
+
+            // 5. Setup insights rendering
+            setupInsightsRendering(data);
+
+            // 6. Initialize Lap Visualizer (Interactive lap-by-lap analysis)
+            initializeLapVisualizer(data);
+        }
+
+        /**
+         * Setup detailed analysis and insights
+         */
+        function setupInsightsRendering(data) {
+            document.getElementById('toggle-insights').addEventListener('click', function renderInsights() {
+                if (!document.getElementById('insights-section').classList.contains('hidden')) {
+                    renderStrategyDetails(data);
+                    renderComparisonChart(data);
+                    renderSensitivityChart(data);
+                }
+            }, { once: true });
+        }
+
+        /**
+         * Switch between different chart views
+         */
+        function switchChart(chartType) {
+            // Update tab styling
+            document.querySelectorAll('.chart-tab').forEach(tab => {
+                tab.classList.remove('active', 'bg-cyan-500/20', 'border-cyan-500/50', 'text-cyan-300');
+                tab.classList.add('bg-slate-700/50', 'border-slate-600/50', 'text-slate-300');
+            });
+            event.target.classList.add('active', 'bg-cyan-500/20', 'border-cyan-500/50', 'text-cyan-300');
+            event.target.classList.remove('bg-slate-700/50', 'border-slate-600/50', 'text-slate-300');
+
+            // Show/hide containers
+            document.querySelectorAll('.chart-container').forEach(container => {
+                container.classList.add('hidden');
+            });
+            document.getElementById(chartType + '-container').classList.remove('hidden');
+        }
+
+        /**
+         * Renders all three chart types
+         */
+        function renderChart(vizData) {
+            renderStintChart(vizData);
+            renderTimeAnalysisChart(vizData);
+            renderCompositionChart(vizData);
+        }
+
+        /**
+         * Renders the Stint Distribution Bar Chart
+         */
+        function renderStintChart(vizData) {
+            const ctx = document.getElementById('strategy-chart').getContext('2d');
+
+            const tyreColors = {
+                'SOFT': '#FF3333',
+                'MEDIUM': '#FFF333',
+                'HARD': '#EBEBEB',
+            };
+
+            const labels = vizData.map(d => d.name);
+            const datasets = [];
+            const maxStints = Math.max(...vizData.map(d => d.stints.length));
+
+            for (let i = 0; i < maxStints; i++) {
+                datasets.push({
+                    label: `Stint ${i + 1}`,
+                    data: vizData.map(d => (d.stints[i] ? d.stints[i].laps : 0)),
+                    backgroundColor: vizData.map(d => {
+                        if (!d.stints[i]) return 'transparent';
+                        const color = tyreColors[d.stints[i].compound];
+                        return color + '40';
+                    }),
+                    borderColor: vizData.map(d => (d.stints[i] ? tyreColors[d.stints[i].compound] : 'transparent')),
+                    borderWidth: 2,
+                    borderRadius: 6,
+                    compounds: vizData.map(d => (d.stints[i] ? d.stints[i].compound : null)),
+                    hoverBackgroundColor: vizData.map(d => (d.stints[i] ? tyreColors[d.stints[i].compound] : 'transparent')),
+                });
+            }
+
+            if (strategyChart) strategyChart.destroy();
+
+            strategyChart = new Chart(ctx, {
+                type: 'bar',
+                data: { labels, datasets },
+                plugins: [ChartDataLabels],
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    animation: {
+                        duration: 800,
+                        easing: 'easeInOutQuart'
+                    },
+                    scales: {
+                        x: {
+                            stacked: true,
+                            title: {
+                                display: true,
+                                text: '📍 Lap Distribution',
+                                color: '#cbd5e1',
+                                font: { size: 14, weight: '600' }
+                            },
+                            ticks: { color: '#94a3b8', font: { size: 11 } },
+                            grid: { color: 'rgba(148, 163, 184, 0.08)', drawBorder: false }
+                        },
+                        y: {
+                            stacked: true,
+                            ticks: { color: '#cbd5e1', font: { size: 12, weight: '600' } },
+                            grid: { display: false, drawBorder: false }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                            titleColor: '#06b6d4',
+                            bodyColor: '#cbd5e1',
+                            borderColor: 'rgba(6, 182, 212, 0.3)',
+                            borderWidth: 1,
+                            padding: 12,
+                            displayColors: true,
+                            callbacks: {
+                                label: (context) => {
+                                    const compound = context.raw._meta ? context.raw : 'N/A';
+                                    return `${context.dataset.compounds[context.dataIndex]}: ${context.parsed.x} laps`;
+                                }
+                            }
+                        },
+                        datalabels: {
+                            color: '#000',
+                            font: { weight: 'bold', size: 12 },
+                            formatter: (value) => value > 0 ? value : ''
+                        }
+                    }
+                }
+            });
+        }
+
+        /**
+         * Renders Time Analysis - Gap to Optimal Strategy
+         */
+        function renderTimeAnalysisChart(vizData) {
+            const ctx = document.getElementById('time-analysis-chart').getContext('2d');
+
+            // Mock time data based on strategy names (in a real app, this would come from API)
+            const timeGaps = vizData.map((d, idx) => ({
+                name: d.name,
+                gap: idx === 0 ? 0 : (idx * 2.5)
+            }));
+
+            if (timeAnalysisChart) timeAnalysisChart.destroy();
+
+            timeAnalysisChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: timeGaps.map(d => d.name),
+                    datasets: [{
+                        label: 'Time Gap to Optimal (s)',
+                        data: timeGaps.map(d => d.gap),
+                        backgroundColor: timeGaps.map((d, idx) =>
+                            idx === 0 ? 'rgba(6, 182, 212, 0.7)' : 'rgba(100, 200, 220, 0.5)'
+                        ),
+                        borderColor: timeGaps.map((d, idx) =>
+                            idx === 0 ? '#06b6d4' : '#64c8dc'
+                        ),
+                        borderWidth: 2,
+                        borderRadius: 6,
+                        hoverBackgroundColor: 'rgba(6, 182, 212, 0.9)'
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    animation: {
+                        duration: 800,
+                        easing: 'easeInOutQuart'
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: '⏱ Gap to Optimal (seconds)',
+                                color: '#cbd5e1',
+                                font: { size: 14, weight: '600' }
+                            },
+                            ticks: { color: '#94a3b8', font: { size: 11 } },
+                            grid: { color: 'rgba(148, 163, 184, 0.08)', drawBorder: false }
+                        },
+                        y: {
+                            ticks: { color: '#cbd5e1', font: { size: 12, weight: '600' } },
+                            grid: { display: false, drawBorder: false }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                            titleColor: '#06b6d4',
+                            bodyColor: '#cbd5e1',
+                            borderColor: 'rgba(6, 182, 212, 0.3)',
+                            borderWidth: 1,
+                            padding: 12,
+                            callbacks: {
+                                afterLabel: () => '(Lower is better)'
+                            }
+                        },
+                        datalabels: {
+                            color: '#cbd5e1',
+                            font: { weight: 'bold', size: 12 },
+                            formatter: (value) => value > 0 ? `+${value.toFixed(2)}s` : 'BEST'
+                        }
+                    }
+                }
+            });
+        }
+
+        /**
+         * Renders Tyre Compound Composition
+         */
+        function renderCompositionChart(vizData) {
+            const ctx = document.getElementById('composition-chart').getContext('2d');
+
+            // Count tyre compounds across all strategies
+            const tyreCounts = { SOFT: 0, MEDIUM: 0, HARD: 0 };
+            vizData.forEach(strategy => {
+                strategy.stints.forEach(stint => {
+                    if (tyreCounts[stint.compound] !== undefined) {
+                        tyreCounts[stint.compound] += stint.laps;
+                    }
+                });
+            });
+
+            if (compositionChart) compositionChart.destroy();
+
+            compositionChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Soft Tyre', 'Medium Tyre', 'Hard Tyre'],
+                    datasets: [{
+                        data: [tyreCounts.SOFT, tyreCounts.MEDIUM, tyreCounts.HARD],
+                        backgroundColor: [
+                            'rgba(255, 51, 51, 0.8)',
+                            'rgba(255, 243, 51, 0.8)',
+                            'rgba(235, 235, 235, 0.8)'
+                        ],
+                        borderColor: [
+                            '#FF3333',
+                            '#FFF333',
+                            '#EBEBEB'
+                        ],
+                        borderWidth: 2,
+                        hoverOffset: 8
+                    }]
+                },
+                plugins: [ChartDataLabels],
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    aspectRatio: 1.2,
+                    animation: {
+                        duration: 800,
+                        easing: 'easeInOutQuart'
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                color: '#cbd5e1',
+                                font: { size: 12, weight: '500' },
+                                padding: 20,
+                                generateLabels: (chart) => {
+                                    const data = chart.data;
+                                    return data.labels.map((label, idx) => ({
+                                        text: label,
+                                        fillStyle: data.datasets[0].backgroundColor[idx],
+                                        strokeStyle: data.datasets[0].borderColor[idx],
+                                        lineWidth: 2,
+                                        hidden: false,
+                                        index: idx
+                                    }));
+                                }
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                            titleColor: '#06b6d4',
+                            bodyColor: '#cbd5e1',
+                            borderColor: 'rgba(6, 182, 212, 0.3)',
+                            borderWidth: 1,
+                            padding: 12,
+                            callbacks: {
+                                label: (context) => `Total Laps: ${context.parsed}`
+                            }
+                        },
+                        datalabels: {
+                            color: '#000',
+                            font: { weight: 'bold', size: 13 },
+                            formatter: (value, context) => {
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const percent = ((value / total) * 100).toFixed(0);
+                                return percent + '%';
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        /**
+         * Shows the error display
+         */
+        function showError(message) {
+            errorTextEl.textContent = message;
+            errorEl.style.display = 'block';
+            resultsSectionEl.style.display = 'none';
+            errorEl.style.animation = 'slideDown 0.3s ease-out';
+        }
+
+        /**
+         * Sets the loading state of the submit button
+         */
+        function setLoading(isLoading) {
+            if (isLoading) {
+                runBtn.disabled = true;
+                runBtn.classList.add('opacity-75', 'cursor-not-allowed');
+                btnText.textContent = 'Simulating...';
+                loadingSpinner.style.display = 'block';
+                errorEl.style.display = 'none';
+            } else {
+                runBtn.disabled = false;
+                runBtn.classList.remove('opacity-75', 'cursor-not-allowed');
+                btnText.textContent = 'Run Simulation';
+                loadingSpinner.style.display = 'none';
+            }
+        }
+
+        /**
+         * Renders detailed strategy breakdown
+         */
+        function renderStrategyDetails(data) {
+            const detailsEl = document.getElementById('strategy-details');
+            detailsEl.innerHTML = '';
+
+            data.top_3_results.slice(0, 3).forEach((result, idx) => {
+                const isOptimal = idx === 0;
+                const vizData = data.visualization_data[idx];
+
+                let stintDetails = '';
+                vizData.stints.forEach((stint, si) => {
+                    stintDetails += `
+                        <div class="flex justify-between text-sm mb-2">
+                            <span class="text-slate-400">Stint ${si + 1}:</span>
+                            <span class="text-slate-100 font-mono">${stint.laps} laps (${stint.compound})</span>
+                        </div>
+                    `;
+                });
+
+                const card = document.createElement('div');
+                card.className = `bg-slate-800/50 border ${isOptimal ? 'border-cyan-500/50' : 'border-slate-700/50'} rounded-lg p-5 card-hover`;
+
+                card.innerHTML = `
+                    <div class="flex items-start justify-between mb-4">
+                        <h4 class="text-lg font-bold ${isOptimal ? 'text-cyan-300' : 'text-slate-100'}">${result.name}</h4>
+                        ${isOptimal ? '<span class="bg-cyan-500/20 text-cyan-300 text-xs px-2 py-1 rounded font-semibold">OPTIMAL</span>' : ''}
+                    </div>
+                    <div class="space-y-3">
+                        <div>
+                            <p class="text-xs text-slate-500 uppercase tracking-wide font-semibold mb-2">Pit Strategy</p>
+                            ${stintDetails}
+                        </div>
+                        <div class="border-t border-slate-700/50 pt-3 mt-3">
+                            <p class="text-xs text-slate-500 uppercase tracking-wide font-semibold mb-1">Total Time</p>
+                            <p class="text-lg font-bold text-cyan-400">${result.total_time_str}</p>
+                        </div>
+                        ${result.delta_str ? `
+                        <div class="bg-yellow-500/10 border border-yellow-500/30 rounded p-2 text-xs text-yellow-300">
+                            Gap to optimal: ${result.delta_str}
+                        </div>
+                        ` : ''}
+                    </div>
+                `;
+
+                detailsEl.appendChild(card);
+            });
+        }
+
+        /**
+         * Renders comparison chart - All strategies vs time
+         */
+        function renderComparisonChart(data) {
+            const ctx = document.getElementById('comparison-chart').getContext('2d');
+
+            const topThree = data.top_3_results.slice(0, 3);
+            const strategies = topThree.map(r => r.name);
+            const times = topThree.map((r, idx) => {
+                const gap = r.delta_str ? parseFloat(r.delta_str.match(/[\d.]+/)[0]) : 0;
+                return idx === 0 ? 0 : gap;
+            });
+
+            if (comparisonChart) comparisonChart.destroy();
+
+            comparisonChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: strategies,
+                    datasets: [{
+                        label: 'Time Gap from Optimal (s)',
+                        data: times,
+                        borderColor: '#06b6d4',
+                        backgroundColor: 'rgba(6, 182, 212, 0.1)',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 6,
+                        pointBackgroundColor: '#06b6d4',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        pointHoverRadius: 8,
+                        pointHoverBackgroundColor: '#0ea5e9'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    animation: { duration: 800, easing: 'easeInOutQuart' },
+                    scales: {
+                        y: {
+                            ticks: { color: '#94a3b8', font: { size: 11 } },
+                            grid: { color: 'rgba(148, 163, 184, 0.08)', drawBorder: false },
+                            title: { display: true, text: 'Time Gap (seconds)', color: '#cbd5e1' }
+                        },
+                        x: {
+                            ticks: { color: '#cbd5e1', font: { size: 12, weight: '600' } },
+                            grid: { display: false, drawBorder: false }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            labels: { color: '#cbd5e1', font: { size: 12, weight: '500' }, padding: 15 }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                            titleColor: '#06b6d4',
+                            bodyColor: '#cbd5e1',
+                            borderColor: 'rgba(6, 182, 212, 0.3)',
+                            borderWidth: 1,
+                            padding: 12,
+                            callbacks: {
+                                label: (context) => `Gap: ${context.parsed.y > 0 ? '+' : ''}${context.parsed.y.toFixed(2)}s`
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        /**
+         * Renders sensitivity analysis - impact of pit loss time
+         */
+        function renderSensitivityChart(data) {
+            const ctx = document.getElementById('sensitivity-chart').getContext('2d');
+
+            const currentPitLoss = parseFloat(pitLossEl.value);
+            const variances = [-10, -5, 0, 5, 10]; // % changes
+            const topStrategy = data.visualization_data[0];
+
+            // Calculate estimated times for different pit loss values
+            const labels = variances.map(v => {
+                const pitLoss = currentPitLoss * (1 + v/100);
+                return `${v > 0 ? '+' : ''}${v}% (${pitLoss.toFixed(1)}s)`;
+            });
+
+            // Simulate impact (simplified calculation)
+            const impactValues = variances.map(v => {
+                const numPits = topStrategy.stints.length - 1;
+                const change = (currentPitLoss * (v/100)) * numPits;
+                return change;
+            });
+
+            if (sensitivityChart) sensitivityChart.destroy();
+
+            sensitivityChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Time Impact (seconds)',
+                        data: impactValues,
+                        backgroundColor: impactValues.map(v =>
+                            v < 0 ? 'rgba(34, 197, 94, 0.6)' : v > 0 ? 'rgba(239, 68, 68, 0.6)' : 'rgba(6, 182, 212, 0.6)'
+                        ),
+                        borderColor: impactValues.map(v =>
+                            v < 0 ? '#22c55e' : v > 0 ? '#ef4444' : '#06b6d4'
+                        ),
+                        borderWidth: 2,
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    animation: { duration: 800, easing: 'easeInOutQuart' },
+                    scales: {
+                        y: {
+                            ticks: { color: '#94a3b8', font: { size: 11 } },
+                            grid: { color: 'rgba(148, 163, 184, 0.08)', drawBorder: false },
+                            title: { display: true, text: 'Time Change (seconds)', color: '#cbd5e1' }
+                        },
+                        x: {
+                            ticks: { color: '#cbd5e1', font: { size: 11 } },
+                            grid: { display: false, drawBorder: false }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            labels: { color: '#cbd5e1', font: { size: 12, weight: '500' }, padding: 15 }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                            titleColor: '#06b6d4',
+                            bodyColor: '#cbd5e1',
+                            borderColor: 'rgba(6, 182, 212, 0.3)',
+                            borderWidth: 1,
+                            padding: 12,
+                            callbacks: {
+                                label: (context) => {
+                                    const val = context.parsed.y;
+                                    if (val < 0) return `⬇ Saves ${Math.abs(val).toFixed(2)}s`;
+                                    if (val > 0) return `⬆ Costs ${val.toFixed(2)}s`;
+                                    return 'No change';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        /**
+         * Initialize and render the Lap Visualizer component
+         * Transforms simulation data into the format needed for visualization
+         */
+        let lapVisualizer = null;
+
+        function initializeLapVisualizer(data) {
+            if (!data.top_3_results || data.top_3_results.length === 0) {
+                console.warn('No simulation data available for Lap Visualizer');
+                return;
+            }
+
+            // NEW: Format ALL strategies into an array
+            const formattedStrategies = data.top_3_results.map(strategy => {
+                return {
+                    driver_name: document.getElementById('driver_name').value || 'Driver',
+                    race_name: document.getElementById('race_name').value || 'Race',
+                    strategy_name: strategy.name || strategy.strategy_name || 'Optimal',
+                    total_time: strategy.total_time || 0,
+                    final_position: strategy.position || 1,
+                    lap_times: strategy.lap_times || [],
+                    fuel_levels: strategy.fuel_levels || [],
+                    tyre_ages: strategy.tyre_ages || [],
+                    positions: strategy.positions || [],
+                    pit_stops: strategy.pit_stops || []
+                };
+            });
+
+            const hasLapData =
+                formattedStrategies[0].lap_times.length > 0 &&
+                formattedStrategies[0].fuel_levels.length > 0 &&
+                formattedStrategies[0].tyre_ages.length > 0 &&
+                formattedStrategies[0].positions.length > 0;
+
+            if (!hasLapData) {
+                console.warn('⚠️ Insufficient lap-by-lap data for visualizer');
+                return;
+            }
+
+            const vizSection = document.getElementById('lap-visualizer-section');
+            vizSection.classList.remove('hidden');
+
+            if (lapVisualizer) {
+                lapVisualizer.destroy();
+            }
+
+            // NEW: Pass the array of strategies to the visualizer
+            lapVisualizer = new LapVisualizer({
+                containerId: 'lap-visualizer-container',
+                strategies: formattedStrategies, 
+                theme: 'dark',
+            });
+
+            lapVisualizer.render();
+
+            setTimeout(() => {
+                const vizElement = document.getElementById('lap-visualizer-section');
+                if (vizElement) {
+                    vizElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }, 300);
+        }
+    let trackChartInstance = null;
+
+// Only expect raceName now
+async function showTrackMap(raceName) {
+    if (!raceName) {
+        console.error("Missing race name!");
+        return; 
+    }
+
+    try {
+        const response = await fetch(`/api/track-layout/${raceName}`);
+        
+        if (!response.ok) {
+            console.error(`API Error: ${response.status} - ${response.statusText}`);
+            return; 
+        }
+
+        const data = await response.json();
+
+        // 1. Combine X and Y arrays
+        const trackPoints = data.x.map((xCoord, index) => {
+            return { x: xCoord, y: data.y[index] };
+        });
+
+        // 2. Prepare the Canvas and Modal
+        const canvas = document.getElementById('track-canvas');
+        const modal = document.getElementById('track-map-modal'); // <-- Using modal now!
+        const title = document.getElementById('track-map-title');
+        
+        if (!canvas || !modal) {
+            console.error("Could not find the canvas or modal elements in the HTML!");
+            return;
+        }
+
+        const ctx = canvas.getContext('2d');
+        
+        // Show the modal and update the title
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        title.textContent = `📍 ${raceName.charAt(0).toUpperCase() + raceName.slice(1)} Layout`;
+
+        // Clear any previous track drawings
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // 3. Math to scale the track to fit inside the canvas perfectly
+        const minX = Math.min(...trackPoints.map(p => p.x));
+        const maxX = Math.max(...trackPoints.map(p => p.x));
+        const minY = Math.min(...trackPoints.map(p => p.y));
+        const maxY = Math.max(...trackPoints.map(p => p.y));
+
+        const trackWidth = maxX - minX;
+        const trackHeight = maxY - minY;
+
+        // Leave a 40px padding margin around the edges
+        const padding = 40; 
+        const scale = Math.min(
+            (canvas.width - padding * 2) / trackWidth,
+            (canvas.height - padding * 2) / trackHeight
+        );
+
+        // Center the map
+        const offsetX = (canvas.width - trackWidth * scale) / 2;
+        const offsetY = (canvas.height - trackHeight * scale) / 2;
+
+        // 4. Draw the geometry
+        ctx.beginPath();
+        ctx.strokeStyle = '#00d9ff'; // Cyan line
+        ctx.lineWidth = 4;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        trackPoints.forEach((point, index) => {
+            // Apply scale and offset
+            const screenX = (point.x - minX) * scale + offsetX;
+            
+            // Subtract from canvas.height to flip the Y-axis!
+            const screenY = canvas.height - ((point.y - minY) * scale + offsetY); 
+
+            if (index === 0) {
+                ctx.moveTo(screenX, screenY);
+            } else {
+                ctx.lineTo(screenX, screenY);
+            }
+        });
+
+        // Close the loop (connect last point to first point)
+        ctx.closePath();
+        ctx.stroke();
+
+    } catch (error) {
+        console.error("Error fetching or drawing track map:", error);
+    }
+}
+
+function renderTrackChart(dataPoints) {
+    const ctx = document.getElementById('trackMapCanvas').getContext('2d');
+
+    // Destroy previous chart instance if it exists to prevent overlap
+    if (trackChartInstance) {
+        trackChartInstance.destroy();
+    }
+
+    trackChartInstance = new Chart(ctx, {
+        type: 'scatter',
+        data: {
+            datasets: [{
+                label: 'Track Path',
+                data: dataPoints,
+                showLine: true,
+                borderColor: '#00d9ff', // Glowing Cyan
+                borderWidth: 4,
+                pointRadius: 0, // Hide dots, just show the continuous line
+                tension: 0.2    // Adds a slight smooth curve to the corners
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true, // Crucial: Prevents the track from stretching/squishing
+            animation: {
+                duration: 2000,
+                easing: 'easeOutQuart' // Cool effect: track draws itself in
+            },
+            plugins: {
+                legend: { display: false },
+                tooltip: { enabled: false }
+            },
+            scales: {
+                x: {
+                    display: false // Hide grid lines
+                },
+                y: {
+                    display: false, // Hide grid lines
+                    reverse: true   // Crucial: FastF1 Y-coordinates are inverted relative to HTML Canvas
+                }
+            }
+        }
+    });
+}
+
+function closeTrackMap() {
+    document.getElementById('track-modal').classList.add('hidden');
+}
+
+async function showDriverInfo() {
+    const driverInput = document.getElementById('driver_name').value;
+    if (!driverInput) {
+        alert("Please select a driver first.");
+        return;
+    }
+
+    const modal = document.getElementById('driver-modal');
+    const loading = document.getElementById('driver-loading');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    title.innerHTML = `📍 ${raceName.charAt(0).toUpperCase() + raceName.slice(1)} Layout`;
+    loading.classList.remove('hidden');
+    window.closeDriverInfo = function() {
+    const modal = document.getElementById('driver-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+};
+// 1. Close modal when clicking the 'X' button
+document.getElementById('close-track-modal').addEventListener('click', closeModal);
+
+// 2. Bonus: Close modal if the user clicks the dark background outside the box
+document.getElementById('track-map-modal').addEventListener('click', (e) => {
+    if (e.target.id === 'track-map-modal') {
+        closeModal();
+    }
+});
+
+// Helper function to hide the modal
+function closeModal() {
+    const modal = document.getElementById('track-map-modal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+// Bonus: Allow users to close the modal by clicking anywhere on the dark background
+document.addEventListener('click', function(event) {
+    const modal = document.getElementById('driver-modal');
+    // If the user clicked the dark backdrop (and not the card itself), close it
+    if (event.target === modal) {
+        window.closeDriverInfo();
+    }
+});
+
+    try {
+        const response = await fetch(`http://127.0.0.1:8000/api/driver-info/${encodeURIComponent(driverInput)}`);
+        const data = await response.json();
+
+        // THE FIX: Catch the error before trying to load undefined data
+        if (data.error) {
+            alert(data.error);
+            closeDriverInfo();
+            return;
+        }
+
+        // Populate the modal using the exact code from the backend
+        document.getElementById('driver-badge').innerText = data.code;
+        document.getElementById('modal-driver-name').innerText = data.name;
+        document.getElementById('modal-driver-team').innerText = data.team;
+        document.getElementById('modal-driver-country').innerText = data.country;
+        
+        document.getElementById('stat-champ').innerText = data.championships;
+        document.getElementById('stat-wins').innerText = data.wins;
+        document.getElementById('stat-podiums').innerText = data.podiums;
+        document.getElementById('stat-poles').innerText = data.poles;
+        document.getElementById('stat-starts').innerText = data.starts;
+
+    } catch (error) {
+        console.error("Error fetching driver info:", error);
+        alert("Failed to load driver profile.");
+        closeDriverInfo();
+    } finally {
+        loading.classList.add('hidden');
+    }
+}
+async function loadApiData() {
+    const raceDropdown = document.getElementById('race_name');
+
+    try {
+        const response = await fetch('/api-data');
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+
+        // Clear the "Loading races..." placeholder
+        raceDropdown.innerHTML = '<option value="" disabled selected>Select a race...</option>';
+
+        // Populate the dropdown with the races from your database
+        data.races.forEach(race => {
+            const option = document.createElement('option');
+            option.value = race; // This is the exact string your backend needs (e.g., 'bahrain')
+            
+            // Capitalize the first letter so it looks nice in the UI (e.g., 'Bahrain')
+            option.textContent = race.charAt(0).toUpperCase() + race.slice(1); 
+            
+            raceDropdown.appendChild(option);
+        });
+
+    } catch (error) {
+        console.error("Failed to load races from API:", error);
+        raceDropdown.innerHTML = '<option value="" disabled selected>Error loading races.</option>';
+    }
+}
+
+// 2. Call the load function immediately when the script runs
+loadApiData();
+
+// 3. Attach the click listener to your "View Track" button
+// Assuming your button has an ID like this: <button id="view-track-btn">View Track</button>
+document.getElementById('view-track-btn').addEventListener('click', () => {
+    
+    // Grab the current value from the dropdown we just populated
+    const selectedRaceName = document.getElementById('race_name').value;
+
+    if (!selectedRaceName) {
+        alert("Please select a race from the dropdown first!");
+        return; 
+    }
+
+    // Pass it to your map function!
+    console.log("Fetching map for:", selectedRaceName);
+    showTrackMap(selectedRaceName);
+});
+// This guarantees the HTML is fully loaded before attaching the buttons
+document.addEventListener('DOMContentLoaded', () => {
+    
+    const closeBtn = document.getElementById('close-track-modal');
+    const modal = document.getElementById('track-map-modal');
+
+    // Make sure we actually found the elements before attaching listeners
+    if (closeBtn && modal) {
+        
+        // 1. Close when clicking the 'X' button
+        closeBtn.addEventListener('click', () => {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        });
+
+        // 2. Close when clicking the dark background outside the box
+        modal.addEventListener('click', (e) => {
+            if (e.target.id === 'track-map-modal') {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+        });
+        
+        console.log("Modal close buttons successfully armed!");
+    } else {
+        console.error("Could not find the close button or modal HTML elements.");
+    }
+});
+    </script>
+</body>
+
+</html>
